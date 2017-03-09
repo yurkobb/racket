@@ -60,7 +60,7 @@
     (error 'compare "no such file: ~s" a)]))
 
 (when git-exe
-  (for ([link-mode '(rel up abs)])
+  (for ([link-mode '(rel good-up1 good-up2 good-up3 bad-up1 bad-up2 abs)])
     (define dir (make-temporary-file "~a-git-test" 'directory))
     (define http-custodian (make-custodian))
     (dynamic-wind
@@ -95,8 +95,16 @@
              (case link-mode
                [(abs)
                 (make-file-or-directory-link "/tmp/x" "abs-x")]
-               [(up)
+               [(good-up1)
+                (make-file-or-directory-link "../x" "nested/up-x")]
+               [(good-up2)
+                (make-file-or-directory-link "../nested/x" "nested/up-down-x")]
+               [(good-up3)
+                (make-file-or-directory-link "../nonexistent/nonexistent/x" "nested/nonexistent-x")]
+               [(bad-up1)
                 (make-file-or-directory-link "../x" "abs-x")]
+               [(bad-up2)
+                (make-file-or-directory-link "../../x" "nested/up-up-x")]
                [else
                 (make-file-or-directory-link "x" "also-x")]))
            (git "init")
@@ -112,7 +120,7 @@
          (with-handlers ([exn:fail?
                           (lambda (exn)
                             (case link-mode
-                              [(abs up)
+                              [(abs bad-up1 bad-up2)
                                (if (regexp-match? #rx"won't extract" (exn-message exn))
                                    (printf "correct failure\n")
                                    (raise exn))]
@@ -122,8 +130,8 @@
                          #:dest-dir "safe-repo"
                          #:strict-links? #t)
            (case link-mode
-             [(abs up) (unless (eq? 'windows (system-type))
-                         (error "should not have worked"))])
+             [(abs bad-up1 bad-up2) (unless (eq? 'windows (system-type))
+                                      (error "should not have worked"))])
            (compare "repo" "safe-repo"))
          
          (void)))

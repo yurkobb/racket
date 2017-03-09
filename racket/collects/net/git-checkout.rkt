@@ -621,7 +621,7 @@
 ;; ----------------------------------------
 ;; Extract a checkout tree
 
-;; extract-commit-tree : bytes (hash/c bytes object) tmp-info path -> void
+;; extract-commit-tree : bytes (hash/c bytes object) tmp-info path boolean -> void
 ;;  Extract the designated commit to `dest-dir`, using objects from `tmp`
 (define (extract-commit-tree obj-id obj-ids tmp dest-dir strict-links?)
   (define obj (hash-ref obj-ids obj-id))
@@ -634,7 +634,7 @@
         (lambda (i)
           (extract-commit-info i obj-id))))
      (define tree-id (hex-string->bytes tree-id-str))
-     (extract-tree tree-id obj-ids tmp dest-dir strict-links?)]
+     (extract-tree tree-id obj-ids tmp dest-dir "." strict-links?)]
     [(tag)
      (define commit-id-bstr
        (call-with-input-object
@@ -649,7 +649,7 @@
      (define commit-id (hex-string->bytes (bytes->string/utf-8 commit-id-bstr)))
      (extract-commit-tree commit-id obj-ids tmp dest-dir strict-links?)]
     [(tree)
-     (extract-tree obj-id obj-ids tmp dest-dir strict-links?)]
+     (extract-tree obj-id obj-ids tmp dest-dir "." strict-links?)]
     [else
      (raise-git-error 'git-checkout "cannot extract tree from ~a: ~s"
                       (object-type obj)
@@ -677,9 +677,9 @@
                (loop))
          null))))
 
-;; extract-tree : bytes (hash/c bytes object) tmp-info path -> void
+;; extract-tree : bytes (hash/c bytes object) tmp-info path path boolean -> void
 ;;  Extract the designated tree to `dest-dir`, using objects from `tmp`
-(define (extract-tree tree-id obj-ids tmp dest-dir strict-links?)
+(define (extract-tree tree-id obj-ids tmp dest-dir relative-dir strict-links?)
   (make-directory* dest-dir)
   (define tree-obj (hash-ref obj-ids tree-id))
   (call-with-input-object
@@ -702,11 +702,11 @@
           [(#"100644" #"644")
            (copy-this-object #o644)]
           [(#"40000" #"040000")
-           (extract-tree id obj-ids tmp (build-path dest-dir fn) strict-links?)]
+           (extract-tree id obj-ids tmp (build-path dest-dir fn) (build-path relative-dir fn) strict-links?)]
           [(#"120000")
            (define target (bytes->path (object->bytes tmp (this-object-location))))
            (when strict-links?
-             (check-unpack-path 'git-checkout target))
+             (check-unpack-path 'git-checkout target #:relative-dir relative-dir))
            (make-file-or-directory-link target (build-path dest-dir fn))]
           [(#"160000")
            ;; submodule; just make a directory placeholder
